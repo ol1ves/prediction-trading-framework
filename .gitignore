@@ -74,3 +74,6 @@ dmypy.json
 
 # uv
 .uv/
+
+# Cursor
+.cursor/
