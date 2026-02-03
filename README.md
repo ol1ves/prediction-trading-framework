@@ -1,4 +1,4 @@
-## Open Prediction Trading (Active Development)
+## Prediction Trading Framework (Active Development)
 
 This repo is a **side / passion project** exploring what a modular, “bottom-up” prediction-market trading system could become over time.
 
