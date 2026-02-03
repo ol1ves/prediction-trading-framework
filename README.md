@@ -13,10 +13,12 @@ The long-term direction is a framework where you can plug in:
 
 - **Kalshi API wrapper/client**: an authenticated, async-friendly client for Kalshi’s Trade API with request signing.
 - **Config + environment setup**: `.env`-based configuration with validation and tuning knobs (rate limiting / retries / defaults).
+- **Execution + portfolio plumbing (MVP)**: normalized models + an in-process message bus wiring a minimal Portfolio Manager to a basic Execution Engine (polling-based).
 
 ## What we’re working on now
 
-- A **robust trade execution engine** (order submission, tracking, and safer automation on top of the API client).
+- Hardening the **trade execution engine** (more robust order lifecycle handling, reconciliation, and safety rails).
+- Building out the **portfolio manager** beyond plumbing (risk, sizing, and position management rules).
 
 ## Not yet stable / not financial advice
 
@@ -57,6 +59,20 @@ uv run pytest
 Notes:
 - **Integration tests** require valid Kalshi credentials and network access.
 - Tests marked **`live_trading`** are opt-in and may place real orders (typically against the demo environment).
+
+### Demo runtime (very early)
+
+There is a minimal end-to-end demo runtime that wires up:
+- `KalshiClient` → `KalshiExecutionAdapter` → `ExecutionEngine`
+- `PortfolioManager` ↔ (command/event buses) ↔ `ExecutionEngine`
+
+Run it with:
+
+```bash
+uv run python src/main.py
+```
+
+By default it submits a small **demo** order and may cancel it shortly after. You should set `DEMO_TICKER` to a real demo-market ticker, and `DEMO_LIMIT_PRICE` to something reasonable for testing first (see `env_example.env`).
 
 ## Contact
 
