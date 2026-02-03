@@ -1,8 +1,10 @@
 <!--
 Sync Impact Report
-- Version change: N/A (template) → 1.0.0
-- Modified principles: N/A (template placeholders → concrete principles)
-- Added sections: Code Quality Standards, Workflow & Review Gates
+- Version change: 1.0.0 → 1.1.0
+- Modified principles:
+  - Modularity and Clear Boundaries → Modularity, Clear Boundaries, and Message-Passing
+- Added sections:
+  - Async & Event-Driven Discipline
 - Removed sections: None
 - Templates requiring updates:
   - ✅ .specify/templates/plan-template.md
@@ -15,7 +17,7 @@ Sync Impact Report
   - TODO(RATIFICATION_DATE): Original adoption date is unknown; set this once confirmed.
 -->
 
-# Kalshi Trading Toolkit Constitution
+# Prediction Trading Framework Constitution
 
 ## Core Principles
 
@@ -52,13 +54,26 @@ Consistency beats personal preference.
 - If the codebase lacks a convention for a new area, introduce the smallest consistent convention
   and apply it locally (do not reformat unrelated code).
 
-### Modularity and Clear Boundaries
-Design code so it can change without collateral damage.
+### Modularity, Clear Boundaries, and Message-Passing
+Design code so it can change without collateral damage, especially across async boundaries.
 
 - Separate concerns (I/O at the edges; pure logic in the middle where possible).
 - Keep modules focused; avoid “god” files and cross-cutting tangles.
 - Prefer explicit inputs/outputs over hidden globals.
 - Avoid circular dependencies; if boundaries are unclear, define an interface and depend on that.
+- Prefer decoupling via **commands/events** over calling across layers directly when that reduces
+  coupling and makes async behavior easier to reason about.
+
+### Async & Event-Driven Discipline
+Async code adds failure modes; we treat concurrency, queues, and events as first-class design
+constraints.
+
+- **No blocking in the event loop**: any blocking I/O MUST be isolated at the edges (thread/process
+  offload or a dedicated sync boundary).
+- **Single-writer state**: stateful components MUST have a clear owner; other components interact
+  via messages (commands/events) rather than shared mutable state.
+- **Event/command contracts are APIs**: message payloads MUST be versionable, documented, and stable
+  (prefer small, normalized models; ignore unknown fields when practical).
 
 ## Code Quality Standards
 
@@ -76,6 +91,8 @@ Design code so it can change without collateral damage.
   - Are the important “why” comments present and correct?
   - Does it follow existing style?
   - Are boundaries modular and clear?
+  - If async/event-driven: are message contracts explicit, and are backpressure/retry/cancellation
+    handled intentionally?
 - Reviewers are expected to request simplification/refactoring when code is correct but hard to
   understand.
 - Prefer incremental delivery: merge value in small steps rather than large rewrites.
@@ -96,4 +113,4 @@ Design code so it can change without collateral damage.
   - If a PR intentionally violates a principle, it MUST justify the exception and explain why it
     is still the best trade-off.
 
-**Version**: 1.0.0 | **Ratified**: TODO(RATIFICATION_DATE): set original adoption date | **Last Amended**: 2026-01-31
+**Version**: 1.1.0 | **Ratified**: TODO(RATIFICATION_DATE): set original adoption date | **Last Amended**: 2026-02-03

@@ -35,7 +35,9 @@
 - **Simplicity (YAGNI)**: Build the smallest thing that works; justify any added complexity.
 - **Comments explain why**: Add docstrings and comments for intent/trade-offs/invariants.
 - **Follow existing code style**: Match local patterns; avoid unrelated reformatting.
-- **Modularity**: Clear boundaries, focused modules, avoid hidden globals and circular deps.
+- **Modularity + message-passing**: Keep boundaries clear; prefer commands/events over tight coupling.
+- **Async + event-driven discipline**: No blocking in the event loop; explicit backpressure, retries,
+  idempotency, and task lifecycle.
 
 ## Project Structure
 

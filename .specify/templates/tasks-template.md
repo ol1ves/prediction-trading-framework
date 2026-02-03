@@ -68,6 +68,7 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] T007 Create base models/entities that all stories depend on
 - [ ] T008 Configure error handling and logging infrastructure
 - [ ] T009 Setup environment configuration management
+- [ ] T00X Define command/event contracts and ownership boundaries (async + event-driven systems)
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
