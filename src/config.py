@@ -1,3 +1,12 @@
+"""Configuration loading and validation.
+
+This module is responsible for:
+
+- Loading `.env` into the process environment (without overriding existing vars).
+- Converting environment variables into strongly-typed Pydantic models.
+- Validating required fields and providing actionable error messages.
+"""
+
 import os
 from typing import TypeVar
 
@@ -41,6 +50,8 @@ def _get_env_number(name: str, default: _T, cast: type[_T]) -> _T:
         raise ValueError(f"{name} must be a {cast.__name__}. Got: {raw!r}") from exc
 
 class KalshiConfig(BaseModel):
+    """Configuration for interacting with the Kalshi API."""
+
     api_key: str = Field(..., description="Kalshi API key")
     private_key: str = Field(..., description="Kalshi API private key")
     use_demo: bool = Field(default=True, description="Use demo mode")
@@ -83,9 +94,18 @@ class KalshiConfig(BaseModel):
         return v
 
 class Config(BaseModel):
+    """Top-level application configuration."""
+
     kalshi: KalshiConfig = Field(..., description="Kalshi configuration")
 
 def load_config() -> Config:
+    """Load application configuration from environment variables.
+
+    Notes:
+    - Calls `dotenv.load_dotenv()` so local `.env` values are visible to the process.
+    - Raises `ValueError` with actionable messages when required configuration is
+      missing or still contains placeholder values.
+    """
     # Load variables from `.env` into the process environment (without overriding
     # already-set env vars).
     dotenv.load_dotenv()

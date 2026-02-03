@@ -43,20 +43,20 @@ class _FakeAdapter:
 @pytest.mark.asyncio
 async def test_engine_and_pm_message_flow_submit_poll_fill_cancel() -> None:
     adapter = _FakeAdapter()
-    command_bus = CommandBus()
-    event_bus = EventBus()
+    execution_command_bus = CommandBus()
+    execution_event_bus = EventBus()
 
     engine = ExecutionEngine(
         adapter=adapter,
-        command_bus=command_bus,
-        event_bus=event_bus,
+        command_bus=execution_command_bus,
+        event_bus=execution_event_bus,
         poll_interval_s=0.05,
         positions_interval_s=999.0,
     )
-    pm = PortfolioManager(command_bus=command_bus, event_bus=event_bus)
+    pm = PortfolioManager(command_bus=execution_command_bus, event_bus=execution_event_bus)
 
     # Capture events directly for assertions.
-    event_q = event_bus.subscribe()
+    event_q = execution_event_bus.subscribe()
 
     engine_task = asyncio.create_task(engine.run())
     pm_task = asyncio.create_task(pm.run())

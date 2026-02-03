@@ -77,3 +77,6 @@ dmypy.json
 
 # Cursor
 .cursor/
+/specs
+
+*.duckdb

@@ -27,6 +27,7 @@ class TokenBucketRateLimiter:
     """
 
     def __init__(self, rate: int):
+        """Create a token bucket limiter allowing ~`rate` acquisitions per second."""
         if rate <= 0:
             raise ValueError(f"rate must be > 0. Got: {rate}")
 

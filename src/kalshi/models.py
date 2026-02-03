@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 
 def _parse_rfc3339_datetime(value: Any) -> datetime | None:
+    """Parse an RFC3339 timestamp into an aware datetime (UTC if tz missing)."""
     if value is None or value == "":
         return None
     if isinstance(value, datetime):
@@ -29,6 +30,7 @@ def _parse_rfc3339_datetime(value: Any) -> datetime | None:
 
 
 def _parse_fixed_point_dollars(value: Any) -> float:
+    """Parse a fixed-point dollars field from Kalshi (commonly a string)."""
     # API docs define dollars fields as fixed-point strings (4 decimals).
     if value is None or value == "":
         return 0.0
@@ -53,6 +55,8 @@ class _Model(BaseModel):
 
 
 class KalshiMarket(_Model):
+    """Subset of Kalshi market fields used by this project."""
+
     ticker: str
     event_ticker: str
     yes_sub_title: str = ""
@@ -76,11 +80,13 @@ class KalshiMarket(_Model):
     )
     @classmethod
     def _coerce_dollars(cls, v: Any) -> float:
+        """Coerce fixed-point dollars fields into floats."""
         return _parse_fixed_point_dollars(v)
 
     @field_validator("close_time", mode="before")
     @classmethod
     def _coerce_close_time(cls, v: Any) -> datetime:
+        """Coerce `close_time` into an aware datetime."""
         dt = _parse_rfc3339_datetime(v)
         if dt is None:
             raise ValueError("close_time is required")
@@ -88,30 +94,38 @@ class KalshiMarket(_Model):
 
     @classmethod
     def from_api(cls, payload: dict[str, Any]) -> "KalshiMarket":
+        """Parse a market payload from the Kalshi REST API."""
         return cls.model_validate(payload)
 
 
 class KalshiPriceLevel(_Model):
+    """Single orderbook level (price + count)."""
+
     dollars: float
     count: int
 
     @field_validator("dollars", mode="before")
     @classmethod
     def _coerce_dollars(cls, v: Any) -> float:
+        """Coerce fixed-point dollars into float dollars."""
         return _parse_fixed_point_dollars(v)
 
 
 class KalshiOrderBook(_Model):
+    """Orderbook snapshot with YES/NO ladders."""
+
     yes_dollars: list[KalshiPriceLevel]
     no_dollars: list[KalshiPriceLevel]
 
     @classmethod
     def from_api(cls, payload: dict[str, Any]) -> "KalshiOrderBook":
+        """Parse an orderbook payload returned by the Kalshi REST API."""
         orderbook = payload.get("orderbook") or {}
         yes_raw = orderbook.get("yes_dollars") or []
         no_raw = orderbook.get("no_dollars") or []
 
         def _levels(raw: list[list[Any]]) -> list[KalshiPriceLevel]:
+            """Convert raw `[price, count]` arrays into validated price levels."""
             levels: list[KalshiPriceLevel] = []
             for item in raw:
                 if not item or len(item) < 2:
@@ -129,6 +143,8 @@ OrderStatus = Literal["resting", "canceled", "executed"]
 
 
 class KalshiOrder(_Model):
+    """Subset of order fields used for create + polling in this project."""
+
     # Identity / routing
     order_id: str | None = None
     user_id: str | None = None
@@ -162,6 +178,7 @@ class KalshiOrder(_Model):
     @model_validator(mode="before")
     @classmethod
     def _populate_count_from_api(cls, data: Any) -> Any:
+        """Map REST `initial_count` into our `count` field when missing."""
         # REST responses contain `initial_count` (not `count`). We map it into our
         # spec's `count` field if the caller didn't explicitly set count.
         if isinstance(data, dict) and "count" not in data and "initial_count" in data:
@@ -178,6 +195,7 @@ class KalshiOrder(_Model):
     )
     @classmethod
     def _coerce_optional_dollars(cls, v: Any) -> float | None:
+        """Coerce optional fixed-point dollars fields into floats."""
         if v is None:
             return None
         return _parse_fixed_point_dollars(v)
@@ -185,14 +203,18 @@ class KalshiOrder(_Model):
     @field_validator("expiration_time", "created_time", "last_update_time", mode="before")
     @classmethod
     def _coerce_optional_time(cls, v: Any) -> datetime | None:
+        """Coerce optional RFC3339 timestamp fields into aware datetimes."""
         return _parse_rfc3339_datetime(v)
 
     @classmethod
     def from_api(cls, payload: dict[str, Any]) -> "KalshiOrder":
+        """Parse an order payload from the Kalshi REST API."""
         return cls.model_validate(payload)
 
 
 class KalshiPosition(_Model):
+    """Subset of position fields used for the normalized position snapshot."""
+
     ticker: str
     total_traded_dollars: float = 0.0
     position: int = 0
@@ -204,23 +226,29 @@ class KalshiPosition(_Model):
     @field_validator("total_traded_dollars", "market_exposure_dollars", mode="before")
     @classmethod
     def _coerce_dollars(cls, v: Any) -> float:
+        """Coerce fixed-point dollars fields into float dollars."""
         return _parse_fixed_point_dollars(v)
 
     @field_validator("last_updated_ts", mode="before")
     @classmethod
     def _coerce_last_updated_ts(cls, v: Any) -> datetime | None:
+        """Coerce `last_updated_ts` into an aware datetime (if present)."""
         return _parse_rfc3339_datetime(v)
 
     @classmethod
     def from_api(cls, payload: dict[str, Any]) -> "KalshiPosition":
+        """Parse a position payload from the Kalshi REST API."""
         return cls.model_validate(payload)
 
 
 class KalshiBalance(_Model):
+    """Account balance fields returned by the Kalshi REST API."""
+
     balance: int
     portfolio_value: int
     updated_ts: int
 
     @classmethod
     def from_api(cls, payload: dict[str, Any]) -> "KalshiBalance":
+        """Parse a balance payload from the Kalshi REST API."""
         return cls.model_validate(payload)

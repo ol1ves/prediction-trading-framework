@@ -14,6 +14,7 @@ The long-term direction is a framework where you can plug in:
 - **Kalshi API wrapper/client**: an authenticated, async-friendly client for Kalshi’s Trade API with request signing.
 - **Config + environment setup**: `.env`-based configuration with validation and tuning knobs (rate limiting / retries / defaults).
 - **Execution + portfolio plumbing (MVP)**: normalized models + an in-process message bus wiring a minimal Portfolio Manager to a basic Execution Engine (polling-based).
+- **Observability (MVP)**: optional command/event logging to a local DuckDB file for debugging and post-run inspection.
 
 ## What we’re working on now
 
@@ -73,6 +74,8 @@ uv run python src/main.py
 ```
 
 By default it submits a small **demo** order and may cancel it shortly after. You should set `DEMO_TICKER` to a real demo-market ticker, and `DEMO_LIMIT_PRICE` to something reasonable for testing first (see `env_example.env`).
+
+This demo also writes observability records to DuckDB at `observability.duckdb` by default. To change the location, set `OBSERVABILITY_DB_PATH`.
 
 ## Contact
 

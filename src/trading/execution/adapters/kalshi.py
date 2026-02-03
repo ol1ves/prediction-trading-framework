@@ -10,12 +10,16 @@ from kalshi.models import KalshiOrder
 
 
 class KalshiExecutionAdapter(ExecutionAdapter):
+    """ExecutionAdapter implementation backed by `KalshiClient`."""
+
     venue: Venue = "kalshi"
 
     def __init__(self, client: KalshiClient):
+        """Create an adapter that will place/cancel/poll orders via the given client."""
         self._client = client
 
     async def place_order(self, request: OrderRequest) -> VenueOrderId:
+        """Place a normalized `OrderRequest` as a Kalshi order and return order id."""
         order = KalshiOrder(
             ticker=request.ticker,
             side=request.side,
@@ -39,15 +43,18 @@ class KalshiExecutionAdapter(ExecutionAdapter):
         return created.order_id
 
     async def cancel_order(self, venue_order_id: VenueOrderId) -> None:
+        """Cancel an order by venue id."""
         await self._client.cancel_order(venue_order_id)
 
     async def get_order_status(self, venue_order_id: VenueOrderId) -> tuple[str, int]:
+        """Return `(status, fill_count)` for the given venue order id."""
         o = await self._client.get_order(venue_order_id)
         status = str(o.status or "")
         fill_count = int(o.fill_count or 0)
         return status, fill_count
 
     async def get_positions_snapshot(self) -> PositionSnapshot:
+        """Fetch and normalize current positions from Kalshi."""
         positions = await self._client.get_positions(limit=200)
         normalized = [
             Position(

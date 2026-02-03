@@ -45,6 +45,7 @@ class KalshiClient:
     """
 
     def __init__(self, config: KalshiConfig):
+        """Create a client using the given credentials and tuning configuration."""
         self.config = config
         self.api_key: str = config.api_key
         self.private_key = _load_private_key(config.private_key)
@@ -123,6 +124,7 @@ class KalshiClient:
         url = self.base_url + path
 
         def _do_request() -> Any:
+            """Execute the HTTP request synchronously (runs in a worker thread)."""
             resp = requests.request(method, url, headers=headers, json=body, timeout=30)
             if 200 <= resp.status_code < 300:
                 if not resp.content:
@@ -346,6 +348,7 @@ class KalshiHttpError(RuntimeError):
     """HTTP-level error returned by the Kalshi API."""
 
     def __init__(self, *, status_code: int, payload: dict[str, Any] | None):
+        """Create an error capturing HTTP status code and parsed payload (if any)."""
         self.status_code = status_code
         self.payload = payload
         super().__init__(f"Kalshi API HTTP {status_code}: {payload}")
@@ -389,6 +392,7 @@ def _order_to_create_body(order: KalshiOrder, *, normalize_ticker) -> dict[str, 
         body["type"] = order.type
 
     def _fmt_price(value: float) -> str:
+        """Format price fields using the API's fixed-point convention."""
         return f"{value:.4f}"
 
     if order.side == "yes" and order.yes_price_dollars is not None:

@@ -27,6 +27,7 @@ OrderType = Literal["limit", "market"]
 
 
 def utc_now() -> datetime:
+    """Return the current UTC time as a timezone-aware datetime."""
     return datetime.now(tz=timezone.utc)
 
 
@@ -55,12 +56,14 @@ class OrderRequest(_Model):
 class SubmitOrder(_Model):
     type: Literal["submit_order"] = "submit_order"
     request: OrderRequest
+    ts: datetime = Field(default_factory=utc_now)
 
 
 class CancelOrder(_Model):
     type: Literal["cancel_order"] = "cancel_order"
     venue_order_id: VenueOrderId
     reason: str | None = None
+    ts: datetime = Field(default_factory=utc_now)
 
 
 ExecutionCommand = SubmitOrder | CancelOrder
