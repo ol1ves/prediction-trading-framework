@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Mapping
 
-from ..bus import CommandBus, EventBus
+from ..bus import ExecutionCommandBus, ExecutionEventBus
 from ..models import (
     CancelOrder,
     ExecutionEvent,
@@ -34,10 +34,10 @@ class PortfolioManager:
     - It consumes execution events and maintains an in-memory view of order/position state.
     """
 
-    def __init__(self, *, command_bus: CommandBus, event_bus: EventBus) -> None:
+    def __init__(self, *, execution_command_bus: ExecutionCommandBus, execution_event_bus: ExecutionEventBus) -> None:
         """Create a portfolio manager attached to the given buses."""
-        self._commands = command_bus
-        self._events = event_bus
+        self._commands = execution_command_bus
+        self._events = execution_event_bus
 
         self._subscription = self._events.subscribe()
 

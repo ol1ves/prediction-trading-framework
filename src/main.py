@@ -21,14 +21,14 @@ import time
 from config import load_config
 from kalshi.client import KalshiClient
 from observability import DuckDBObservabilitySink, ObservabilityRecorder
-from trading.bus import CommandBus, EventBus
+from trading.bus import ExecutionCommandBus, ExecutionEventBus
 from trading.execution.adapters.kalshi import KalshiExecutionAdapter
 from trading.execution.engine import ExecutionEngine
 from trading.models import OrderRequest
 from trading.portfolio.manager import PortfolioManager
 
 
-async def _log_events(execution_event_bus: EventBus) -> None:
+async def _log_events(execution_event_bus: ExecutionEventBus) -> None:
     """Continuously print events observed on the given event bus."""
     q = execution_event_bus.subscribe()
     while True:
@@ -37,7 +37,7 @@ async def _log_events(execution_event_bus: EventBus) -> None:
 
 async def _wait_for_fill_or_timeout(
     *,
-    execution_event_bus: EventBus,
+    execution_event_bus: ExecutionEventBus,
     venue_order_id: str,
     timeout_s: float,
 ) -> bool:
@@ -68,7 +68,7 @@ async def _wait_for_fill_or_timeout(
 
 async def _wait_for_cancel_or_timeout(
     *,
-    execution_event_bus: EventBus,
+    execution_event_bus: ExecutionEventBus,
     venue_order_id: str,
     timeout_s: float,
 ) -> bool:
@@ -106,11 +106,18 @@ async def run_demo() -> None:
     db_path = os.getenv("OBSERVABILITY_DB_PATH", str(repo_root / "observability.duckdb"))
     recorder = ObservabilityRecorder(sink=DuckDBObservabilitySink(path=db_path))
 
-    execution_command_bus = CommandBus(recorder=recorder)
-    execution_event_bus = EventBus(recorder=recorder)
+    execution_command_bus = ExecutionCommandBus(recorder=recorder)
+    execution_event_bus = ExecutionEventBus(recorder=recorder)
 
-    engine = ExecutionEngine(adapter=adapter, command_bus=execution_command_bus, event_bus=execution_event_bus)
-    pm = PortfolioManager(command_bus=execution_command_bus, event_bus=execution_event_bus)
+    engine = ExecutionEngine(
+        adapter=adapter,
+        execution_command_bus=execution_command_bus,
+        execution_event_bus=execution_event_bus,
+    )
+    pm = PortfolioManager(
+        execution_command_bus=execution_command_bus,
+        execution_event_bus=execution_event_bus,
+    )
 
     engine_task = asyncio.create_task(engine.run(), name="execution-engine")
     pm_task = asyncio.create_task(pm.run(), name="portfolio-manager")

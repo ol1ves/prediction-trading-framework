@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Mapping
 
-from ..bus import CommandBus, EventBus
+from ..bus import ExecutionCommandBus, ExecutionEventBus
 from ..models import (
     CancelOrder,
     ExecutionError,
@@ -32,25 +32,25 @@ class ExecutionEngine:
     """Background worker that translates commands into venue actions + events.
 
     The engine:
-    - Consumes `ExecutionCommand` objects from the `CommandBus`.
+    - Consumes `ExecutionCommand` objects from the ExecutionCommandBus.
     - Delegates placement/cancel to an `ExecutionAdapter`.
     - Polls order status/positions on intervals.
-    - Publishes normalized `ExecutionEvent` objects to the `EventBus`.
+    - Publishes normalized `ExecutionEvent` objects to the ExecutionEventBus.
     """
 
     def __init__(
         self,
         *,
         adapter: ExecutionAdapter,
-        command_bus: CommandBus,
-        event_bus: EventBus,
+        execution_command_bus: ExecutionCommandBus,
+        execution_event_bus: ExecutionEventBus,
         poll_interval_s: float = 0.5,
         positions_interval_s: float = 2.0,
     ) -> None:
         """Create an execution engine with a single venue adapter."""
         self._adapter = adapter
-        self._commands = command_bus
-        self._events = event_bus
+        self._commands = execution_command_bus
+        self._events = execution_event_bus
 
         self._poll_interval_s = poll_interval_s
         self._positions_interval_s = positions_interval_s

@@ -5,7 +5,7 @@ from contextlib import suppress
 
 import pytest
 
-from trading.bus import CommandBus, EventBus
+from trading.bus import ExecutionCommandBus, ExecutionEventBus
 from trading.execution.engine import ExecutionEngine
 from trading.models import OrderRequest, PositionSnapshot
 from trading.portfolio.manager import PortfolioManager
@@ -43,17 +43,20 @@ class _FakeAdapter:
 @pytest.mark.asyncio
 async def test_engine_and_pm_message_flow_submit_poll_fill_cancel() -> None:
     adapter = _FakeAdapter()
-    execution_command_bus = CommandBus()
-    execution_event_bus = EventBus()
+    execution_command_bus = ExecutionCommandBus()
+    execution_event_bus = ExecutionEventBus()
 
     engine = ExecutionEngine(
         adapter=adapter,
-        command_bus=execution_command_bus,
-        event_bus=execution_event_bus,
+        execution_command_bus=execution_command_bus,
+        execution_event_bus=execution_event_bus,
         poll_interval_s=0.05,
         positions_interval_s=999.0,
     )
-    pm = PortfolioManager(command_bus=execution_command_bus, event_bus=execution_event_bus)
+    pm = PortfolioManager(
+        execution_command_bus=execution_command_bus,
+        execution_event_bus=execution_event_bus,
+    )
 
     # Capture events directly for assertions.
     event_q = execution_event_bus.subscribe()

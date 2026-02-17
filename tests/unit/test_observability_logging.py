@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from observability import InMemoryObservabilitySink, ObservabilityRecorder
-from trading.bus import CommandBus, EventBus
+from trading.bus import ExecutionCommandBus, ExecutionEventBus
 from trading.models import OrderRequest, OrderSubmitted, SubmitOrder
 
 
@@ -12,8 +12,8 @@ async def test_observability_records_commands_and_events() -> None:
     sink = InMemoryObservabilitySink()
     recorder = ObservabilityRecorder(sink=sink, max_queue_size=100)
 
-    execution_command_bus = CommandBus(recorder=recorder)
-    execution_event_bus = EventBus(recorder=recorder)
+    execution_command_bus = ExecutionCommandBus(recorder=recorder)
+    execution_event_bus = ExecutionEventBus(recorder=recorder)
 
     trade_id = "t1"
     request = OrderRequest(

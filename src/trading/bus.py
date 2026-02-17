@@ -1,8 +1,16 @@
 """In-process message buses (MVP).
 
-We keep this deliberately simple:
-- A single command queue consumed by the execution engine.
-- An event pub/sub bus so multiple components can observe execution events.
+Buses are named by the domain of messages they carry, so that multiple buses
+can coexist without confusion. Current buses:
+
+- ExecutionCommandBus: single-consumer queue for execution commands (submit/cancel);
+  PortfolioManager -> ExecutionEngine.
+- ExecutionEventBus: fan-out pub/sub for execution lifecycle events (submitted,
+  fills, position snapshots); ExecutionEngine -> subscribers.
+
+Planned buses (same naming pattern):
+- SignalBus or TradeIntentBus: signals published to subscribers that emit trade intents.
+- MarketSnapshotBus: market snapshots published to subscribers.
 """
 
 from __future__ import annotations
@@ -14,15 +22,18 @@ from .models import ExecutionCommand, ExecutionEvent
 from observability.recorder import ObservabilityRecorder
 
 
-class CommandBus:
-    """Single-consumer command queue (PortfolioManager -> ExecutionEngine)."""
+class ExecutionCommandBus:
+    """Single-consumer queue for execution commands (PortfolioManager -> ExecutionEngine).
+
+    Carries ExecutionCommand (SubmitOrder, CancelOrder) to the execution engine.
+    """
 
     def __init__(self, *, recorder: ObservabilityRecorder | None = None) -> None:
         """Create a command queue with optional observability recording."""
         self._queue: asyncio.Queue[ExecutionCommand] = asyncio.Queue()
         self._recorder = recorder
 
-    async def put(self, cmd: ExecutionCommand, *, stage: str = "command_bus") -> None:
+    async def put(self, cmd: ExecutionCommand, *, stage: str = "execution_command_bus") -> None:
         """Enqueue a command for the execution engine.
 
         If a recorder is configured, the command is also recorded for observability.
@@ -40,8 +51,11 @@ class CommandBus:
         self._queue.task_done()
 
 
-class EventBus:
-    """Fan-out event bus (ExecutionEngine -> subscribers)."""
+class ExecutionEventBus:
+    """Fan-out bus for execution lifecycle events (ExecutionEngine -> subscribers).
+
+    Carries ExecutionEvent (order submitted, updates, fills, position snapshots).
+    """
 
     def __init__(self, *, recorder: ObservabilityRecorder | None = None) -> None:
         """Create an event fan-out bus with optional observability recording."""
@@ -58,15 +72,14 @@ class EventBus:
         """Remove a subscriber queue (no further events will be delivered)."""
         self._subscribers.discard(q)
 
-    async def publish(self, event: ExecutionEvent, *, stage: str = "event_bus") -> None:
+    async def publish(self, event: ExecutionEvent, *, stage: str = "execution_event_bus") -> None:
         """Publish an event to all current subscribers (best-effort fan-out)."""
         if self._recorder is not None:
             await self._recorder.record_message(event, kind="event", stage=stage)
         for q in list(self._subscribers):
             await q.put(event)
 
-    async def publish_many(self, events: Iterable[ExecutionEvent], *, stage: str = "event_bus") -> None:
+    async def publish_many(self, events: Iterable[ExecutionEvent], *, stage: str = "execution_event_bus") -> None:
         """Publish multiple events sequentially, preserving order."""
         for event in events:
             await self.publish(event, stage=stage)
-

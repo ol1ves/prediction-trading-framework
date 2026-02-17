@@ -65,7 +65,7 @@ Notes:
 
 There is a minimal end-to-end demo runtime that wires up:
 - `KalshiClient` → `KalshiExecutionAdapter` → `ExecutionEngine`
-- `PortfolioManager` ↔ (command/event buses) ↔ `ExecutionEngine`
+- `PortfolioManager` ↔ (ExecutionCommandBus / ExecutionEventBus) ↔ `ExecutionEngine`
 
 Run it with:
 
