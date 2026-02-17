@@ -20,10 +20,10 @@ import time
 from typing import Any, Final
 from urllib.parse import urlencode
 
-import requests
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
+import requests #type: ignore
+from cryptography.hazmat.primitives import hashes #type: ignore
+from cryptography.hazmat.primitives.asymmetric import padding #type: ignore
+from cryptography.hazmat.primitives.serialization import load_pem_private_key #type: ignore
 
 from config import KalshiConfig
 

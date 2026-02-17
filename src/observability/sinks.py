@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-import duckdb
+import duckdb #type: ignore
 
 from .models import ObservabilityRecord
 
