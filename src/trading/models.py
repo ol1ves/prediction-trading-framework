@@ -25,6 +25,8 @@ OrderSide = Literal["yes", "no"]
 OrderAction = Literal["buy", "sell"]
 OrderType = Literal["limit", "market"]
 
+TradeIntentSide = Literal["YES", "NO"]
+
 
 def utc_now() -> datetime:
     """Return the current UTC time as a timezone-aware datetime."""
@@ -34,6 +36,40 @@ def utc_now() -> datetime:
 class _Model(BaseModel):
     # Keep these models small and forward-compatible with evolving payloads.
     model_config = ConfigDict(extra="ignore", frozen=True)
+
+
+class Signal(_Model):
+    """Internal belief / signal for a subject (e.g. model probability)."""
+
+    subject: str
+    probability: float
+    confidence: float
+    timestamp: datetime = Field(default_factory=utc_now)
+
+
+class MarketSnapshot(_Model):
+    """Market belief for a subject (e.g. implied probability from orderbook).
+
+    Not produced in this iteration; type exists for protocol compatibility.
+    Will be supplied by a different module later.
+    """
+
+    subject: str
+    implied_probability: float
+    timestamp: datetime = Field(default_factory=utc_now)
+
+
+class TradeIntent(_Model):
+    """Strategy output: intent to trade on a subject with given side and probability."""
+
+    trade_id: str
+    strategy_id: str
+    subject: str
+    side: TradeIntentSide
+    probability: float
+    confidence: float
+    rationale: str
+    timestamp: datetime = Field(default_factory=utc_now)
 
 
 class OrderRequest(_Model):
@@ -99,6 +135,7 @@ class OrderCanceled(_Model):
 class OrderUpdate(_Model):
     type: Literal["order_update"] = "order_update"
     venue: Venue
+    trade_id: TradeId | None = None
     venue_order_id: VenueOrderId
     status: str
     fill_count: int
@@ -108,6 +145,7 @@ class OrderUpdate(_Model):
 class FillUpdate(_Model):
     type: Literal["fill_update"] = "fill_update"
     venue: Venue
+    trade_id: TradeId | None = None
     venue_order_id: VenueOrderId
     filled_delta: int
     filled_total: int

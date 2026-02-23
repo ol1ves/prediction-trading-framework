@@ -13,7 +13,8 @@ The long-term direction is a framework where you can plug in:
 
 - **Kalshi API wrapper/client**: an authenticated, async-friendly client for Kalshi’s Trade API with request signing.
 - **Config + environment setup**: `.env`-based configuration with validation and tuning knobs (rate limiting / retries / defaults).
-- **Execution + portfolio plumbing (MVP)**: normalized models + an in-process message bus wiring a minimal Portfolio Manager to a basic Execution Engine (polling-based).
+- **Execution + portfolio plumbing (MVP)**: normalized models + in-process buses wiring Portfolio Manager to the Execution Engine (polling-based).
+- **Strategy layer (MVP)**: protocol, orchestrator, stub strategy, and **trade intent bus** (strategy → intents → PM). A **market resolver** maps strategy subjects to venue/ticker for order submission.
 - **Observability (MVP)**: optional command/event logging to a local DuckDB file for debugging and post-run inspection.
 
 ## What we’re working on now
@@ -45,6 +46,8 @@ cp env_example.env .env
 - **`KALSHI_PRIVATE_KEY`** (PEM; include `\n` for line breaks)
 - **`KALSHI_USE_DEMO`** (recommended to keep `true` while developing)
 
+For the demo, set **`DEMO_TICKER`** to a real demo-market ticker (and **`DEMO_LIMIT_PRICE`** if using the legacy flow). When using the stub strategy (default), **`STUB_STRATEGY_SUBJECT`** is resolved to **`DEMO_TICKER`** via the market resolver.
+
 ### Install dependencies (including dev)
 
 ```bash
@@ -63,19 +66,22 @@ Notes:
 
 ### Demo runtime (very early)
 
-There is a minimal end-to-end demo runtime that wires up:
-- `KalshiClient` → `KalshiExecutionAdapter` → `ExecutionEngine`
-- `PortfolioManager` ↔ (ExecutionCommandBus / ExecutionEventBus) ↔ `ExecutionEngine`
+The demo exercises end-to-end wiring: strategy layer → trade intents → portfolio manager → execution engine.
 
-Run it with:
+**Default (stub strategy):** With **`RUN_STUB_STRATEGY=true`** (default), the app runs a **stub strategy** on a timer. Each tick the stub may emit a **trade intent**; the **Portfolio Manager** consumes intents from the **trade intent bus**, uses the **market resolver** to map the stub subject to `DEMO_TICKER`, and submits orders through the execution engine. This flow is for testing strategy → intent bus → PM → execution wiring.
+
+- **`STUB_STRATEGY_SUBJECT`** — subject the stub uses (resolver maps this to `DEMO_TICKER`).
+- **`STUB_STRATEGY_INTERVAL_S`** — seconds between orchestrator ticks (default `60.0`).
+
+**Legacy flow:** Set **`RUN_STUB_STRATEGY=false`** to run the previous manual buy-then-sell demo (single order then cancel). In that mode, `DEMO_TICKER`, `DEMO_SIDE`, and `DEMO_LIMIT_PRICE` control the order.
+
+Run the demo:
 
 ```bash
 uv run python src/main.py
 ```
 
-By default it submits a small **demo** order and may cancel it shortly after. You should set `DEMO_TICKER` to a real demo-market ticker, and `DEMO_LIMIT_PRICE` to something reasonable for testing first (see `env_example.env`).
-
-This demo also writes observability records to DuckDB at `observability.duckdb` by default. To change the location, set `OBSERVABILITY_DB_PATH`.
+Observability records are written to DuckDB at `observability.duckdb` by default; set **`OBSERVABILITY_DB_PATH`** to override.
 
 ## Contact
 

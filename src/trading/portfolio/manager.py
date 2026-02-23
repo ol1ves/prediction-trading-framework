@@ -4,14 +4,16 @@ This intentionally does NOT implement risk, sizing, or strategy logic yet.
 It only:
 - sends submit/cancel commands to the execution engine
 - consumes execution events and maintains a minimal in-memory view of state
+- when TradeIntentBus and MarketResolver are provided, consumes intents and submits orders
 """
 
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Mapping
 
-from ..bus import ExecutionCommandBus, ExecutionEventBus
+from ..bus import ExecutionCommandBus, ExecutionEventBus, TradeIntentBus
 from ..models import (
     CancelOrder,
     ExecutionEvent,
@@ -24,6 +26,10 @@ from ..models import (
     TradeId,
     VenueOrderId,
 )
+from ..models import TradeIntent
+from ..strategy.resolver import MarketResolver
+
+logger = logging.getLogger(__name__)
 
 
 class PortfolioManager:
@@ -34,12 +40,26 @@ class PortfolioManager:
     - It consumes execution events and maintains an in-memory view of order/position state.
     """
 
-    def __init__(self, *, execution_command_bus: ExecutionCommandBus, execution_event_bus: ExecutionEventBus) -> None:
-        """Create a portfolio manager attached to the given buses."""
+    def __init__(
+        self,
+        *,
+        execution_command_bus: ExecutionCommandBus,
+        execution_event_bus: ExecutionEventBus,
+        trade_intent_bus: TradeIntentBus | None = None,
+        market_resolver: MarketResolver | None = None,
+    ) -> None:
+        """Create a portfolio manager attached to the given buses.
+
+        If trade_intent_bus and market_resolver are both provided, the manager
+        will consume intents via run_intent_consumer() and submit orders.
+        """
         self._commands = execution_command_bus
         self._events = execution_event_bus
+        self._intent_bus = trade_intent_bus
+        self._resolver = market_resolver
 
-        self._subscription = self._events.subscribe()
+        self._event_subscription = self._events.subscribe()
+        self._intent_subscription = trade_intent_bus.subscribe() if trade_intent_bus else None
 
         self._venue_order_by_trade: dict[TradeId, VenueOrderId] = {}
         self._order_status: dict[VenueOrderId, str] = {}
@@ -61,20 +81,51 @@ class PortfolioManager:
     async def run(self) -> None:
         """Consume execution events forever."""
         while True:
-            event: ExecutionEvent = await self._subscription.get()
+            event: ExecutionEvent = await self._event_subscription.get()
             await self._handle_event(event)
 
+    async def run_intent_consumer(self) -> None:
+        """Consume trade intents forever and submit orders via the market resolver.
+
+        Must only be called when trade_intent_bus and market_resolver were provided.
+        """
+        if self._intent_subscription is None or self._resolver is None:
+            raise RuntimeError("run_intent_consumer requires trade_intent_bus and market_resolver")
+        while True:
+            intent: TradeIntent = await self._intent_subscription.get()
+            await self._handle_intent(intent)
+
+    async def _handle_intent(self, intent: TradeIntent) -> None:
+        """Resolve subject to ticker, build OrderRequest, and submit."""
+        identity = self._resolver.resolve(intent.subject, intent.timestamp)
+        if identity is None:
+            logger.warning("No market identity for subject %r; skipping intent %s", intent.subject, intent.trade_id)
+            return
+        side = "yes" if intent.side == "YES" else "no"
+        request = OrderRequest(
+            trade_id=intent.trade_id,
+            venue=identity.venue,
+            ticker=identity.ticker,
+            side=side,
+            action="buy",
+            count=1,
+            order_type="limit",
+            limit_price_dollars=intent.probability,
+            client_order_id=intent.trade_id,
+        )
+        await self.submit_order(request)
+
     async def submit_order(self, request: OrderRequest) -> None:
-        """Submit an order via the execution engine."""
+        """Submit an order directly via the execution engine."""
         self._order_submitted_events.setdefault(request.trade_id, asyncio.Event())
         await self._commands.put(SubmitOrder(request=request), stage="portfolio_manager")
 
     async def cancel_order(self, venue_order_id: VenueOrderId, *, reason: str | None = None) -> None:
-        """Request cancellation of an existing order via the execution engine."""
+        """Request cancellation of an existing order directly via the execution engine."""
         await self._commands.put(CancelOrder(venue_order_id=venue_order_id, reason=reason), stage="portfolio_manager")
 
     async def wait_for_order_submitted(self, trade_id: TradeId, *, timeout_s: float = 10.0) -> VenueOrderId:
-        """Wait until we have a venue order id for a trade."""
+        """Wait until we have a venue order id for a trade directly via the execution engine."""
         ev = self._order_submitted_events.setdefault(trade_id, asyncio.Event())
         await asyncio.wait_for(ev.wait(), timeout=timeout_s)
         return self._venue_order_by_trade[trade_id]

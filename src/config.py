@@ -2,14 +2,14 @@
 
 This module is responsible for:
 
-- Loading `.env` into the process environment (without overriding existing vars).
+- Loading `.env` into the process environment (overriding existing vars so .env wins under the debugger).
 - Converting environment variables into strongly-typed Pydantic models.
 - Validating required fields and providing actionable error messages.
 """
 
 import os
 from typing import TypeVar
-
+from pathlib import Path
 import dotenv
 from pydantic import BaseModel, Field, field_validator
 
@@ -83,14 +83,20 @@ class KalshiConfig(BaseModel):
         """Validate and format private key."""
         if not v or v == "your_kalshi_private_key_here":
             raise ValueError("KALSHI_PRIVATE_KEY is required. Please set it in your .env file.")
-        
-        # Basic validation that it looks like a PEM key
-        if not v.strip().startswith('-----BEGIN') or not v.strip().endswith('-----'):
+        # Strip optional surrounding double quotes (IDE envFile may inject quoted or truncated values)
+        # Include Unicode smart quotes in case .env or IDE uses them
+        _QUOTES = ('"', '\u201c', '\u201d')
+        v = v.strip()
+        if any(v.startswith(q) for q in _QUOTES):
+            v = v[1:]
+        if any(v.endswith(q) for q in _QUOTES):
+            v = v[:-1]
+        v = v.strip()
+        if not v.startswith('-----BEGIN') or not v.endswith('-----'):
             raise ValueError(
                 "Private key must be in PEM format starting with '-----BEGIN' and ending with '-----'. "
                 "Make sure to include \\n for line breaks in your .env file."
             )
-        
         return v
 
 class Config(BaseModel):
@@ -101,14 +107,19 @@ class Config(BaseModel):
 def load_config() -> Config:
     """Load application configuration from environment variables.
 
-    Notes:
-    - Calls `dotenv.load_dotenv()` so local `.env` values are visible to the process.
-    - Raises `ValueError` with actionable messages when required configuration is
-      missing or still contains placeholder values.
+    Loads `.env` from the project root (parent of this file's package dir), then
+    from the process cwd if not found, so behaviour is consistent for both
+    `uv run src/main.py` and the debugger.
+
+    Raises `ValueError` with actionable messages when required configuration is
+    missing or still contains placeholder values.
     """
-    # Load variables from `.env` into the process environment (without overriding
-    # already-set env vars).
-    dotenv.load_dotenv()
+    project_root = Path(__file__).resolve().parent.parent
+    env_file = project_root / ".env"
+    if not env_file.exists():
+        env_file = Path.cwd() / ".env"
+    # override=True so .env wins over IDE envFile (avoids truncated/inconsistent private key)
+    dotenv.load_dotenv(env_file, override=True)
 
     kalshi = KalshiConfig(
         api_key=_get_required_env("KALSHI_API_KEY"),

@@ -160,7 +160,7 @@ class ExecutionEngine:
                 self._tracked[venue_order_id] = {"status": status, "fill_count": fill_count}
 
                 await self._events.publish(
-                    OrderUpdate(venue="kalshi", venue_order_id=venue_order_id, status=status, fill_count=fill_count),
+                    OrderUpdate(venue="kalshi", trade_id=venue_order_id if venue_order_id else None, venue_order_id=venue_order_id, status=status, fill_count=fill_count),
                     stage="execution_engine",
                 )
 
@@ -168,6 +168,7 @@ class ExecutionEngine:
                     await self._events.publish(
                         FillUpdate(
                             venue="kalshi",
+                            trade_id=venue_order_id if venue_order_id else None,
                             venue_order_id=venue_order_id,
                             filled_delta=fill_count - prev_fill,
                             filled_total=fill_count,

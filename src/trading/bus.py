@@ -7,9 +7,11 @@ can coexist without confusion. Current buses:
   PortfolioManager -> ExecutionEngine.
 - ExecutionEventBus: fan-out pub/sub for execution lifecycle events (submitted,
   fills, position snapshots); ExecutionEngine -> subscribers.
+- TradeIntentBus: fan-out pub/sub for trade intents; StrategyOrchestrator -> subscribers
+  (e.g. PortfolioManager).
 
 Planned buses (same naming pattern):
-- SignalBus or TradeIntentBus: signals published to subscribers that emit trade intents.
+- SignalBus: signals published to subscribers that emit trade intents.
 - MarketSnapshotBus: market snapshots published to subscribers.
 """
 
@@ -20,6 +22,7 @@ from collections.abc import Iterable
 
 from .models import ExecutionCommand, ExecutionEvent
 from observability.recorder import ObservabilityRecorder
+from .models import TradeIntent
 
 
 class ExecutionCommandBus:
@@ -83,3 +86,32 @@ class ExecutionEventBus:
         """Publish multiple events sequentially, preserving order."""
         for event in events:
             await self.publish(event, stage=stage)
+
+
+class TradeIntentBus:
+    """Fan-out bus for trade intents (StrategyOrchestrator -> subscribers, e.g. PortfolioManager).
+
+    Carries TradeIntent from the strategy layer to the portfolio manager.
+    """
+
+    def __init__(self, *, recorder: ObservabilityRecorder | None = None) -> None:
+        """Create an intent fan-out bus with optional observability recording."""
+        self._subscribers: set[asyncio.Queue[TradeIntent]] = set()
+        self._recorder = recorder
+
+    def subscribe(self) -> asyncio.Queue[TradeIntent]:
+        """Create a new subscriber queue that will receive published intents."""
+        q: asyncio.Queue[TradeIntent] = asyncio.Queue()
+        self._subscribers.add(q)
+        return q
+
+    def unsubscribe(self, q: asyncio.Queue[TradeIntent]) -> None:
+        """Remove a subscriber queue (no further intents will be delivered)."""
+        self._subscribers.discard(q)
+
+    async def publish(self, intent: TradeIntent, *, stage: str = "trade_intent_bus") -> None:
+        """Publish an intent to all current subscribers (best-effort fan-out)."""
+        if self._recorder is not None:
+            await self._recorder.record_message(intent, kind="event", stage=stage)
+        for queue in list(self._subscribers):
+            await queue.put(intent)
