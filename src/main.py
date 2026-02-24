@@ -116,9 +116,11 @@ async def run_demo() -> None:
     pm = PortfolioManager(
         execution_command_bus=execution_command_bus,
         execution_event_bus=execution_event_bus,
+        config=cfg.portfolio_manager,
         trade_intent_bus=trade_intent_bus,
         market_resolver=resolver,
         market_state_service=market_state_service,
+        recorder=recorder,
     )
 
     engine_task = asyncio.create_task(engine.run(), name="execution-engine")

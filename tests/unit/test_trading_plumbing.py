@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
+from types import SimpleNamespace
 
 import pytest
 
@@ -9,6 +10,14 @@ from trading.bus import ExecutionCommandBus, ExecutionEventBus
 from trading.execution.engine import ExecutionEngine
 from trading.models import OrderRequest, PositionSnapshot
 from trading.portfolio.manager import PortfolioManager
+
+# Minimal PM config for tests that only use submit/cancel (no intent pipeline).
+_PM_CONFIG = SimpleNamespace(
+    kelly_fraction=0.25,
+    min_edge_threshold=0.05,
+    max_position_fraction=0.05,
+    bankroll=10_000.0,
+)
 
 
 class _FakeAdapter:
@@ -56,6 +65,7 @@ async def test_engine_and_pm_message_flow_submit_poll_fill_cancel() -> None:
     pm = PortfolioManager(
         execution_command_bus=execution_command_bus,
         execution_event_bus=execution_event_bus,
+        config=_PM_CONFIG,
     )
 
     # Capture events directly for assertions.

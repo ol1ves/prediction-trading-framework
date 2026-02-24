@@ -49,6 +49,54 @@ def _get_env_number(name: str, default: _T, cast: type[_T]) -> _T:
     except (TypeError, ValueError) as exc:
         raise ValueError(f"{name} must be a {cast.__name__}. Got: {raw!r}") from exc
 
+
+def _get_required_env_float(name: str) -> float:
+    """Read a required float env var or raise a helpful error."""
+    raw = _get_required_env(name)
+    try:
+        value = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be a float. Got: {raw!r}") from exc
+    return value
+
+
+class PortfolioManagerConfig(BaseModel):
+    """Configuration for the portfolio manager (sizing and guardrails)."""
+
+    kelly_fraction: float = Field(default=0.25, description="Multiplier applied to full Kelly output")
+    min_edge_threshold: float = Field(default=0.05, description="Minimum edge (signal - implied) before trading")
+    max_position_fraction: float = Field(default=0.05, description="Max fraction of bankroll per position")
+    bankroll: float = Field(..., description="Total capital available for trading (fixed for MVP)")
+
+    @field_validator("kelly_fraction")
+    @classmethod
+    def validate_kelly_fraction(cls, v: float) -> float:
+        if not (0 < v <= 1):
+            raise ValueError("kelly_fraction must be in (0, 1]. Got: {!r}".format(v))
+        return v
+
+    @field_validator("min_edge_threshold")
+    @classmethod
+    def validate_min_edge_threshold(cls, v: float) -> float:
+        if not (0 < v < 1):
+            raise ValueError("min_edge_threshold must be in (0, 1). Got: {!r}".format(v))
+        return v
+
+    @field_validator("max_position_fraction")
+    @classmethod
+    def validate_max_position_fraction(cls, v: float) -> float:
+        if not (0 < v <= 1):
+            raise ValueError("max_position_fraction must be in (0, 1]. Got: {!r}".format(v))
+        return v
+
+    @field_validator("bankroll")
+    @classmethod
+    def validate_bankroll(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("bankroll must be > 0. Got: {!r}".format(v))
+        return v
+
+
 class KalshiConfig(BaseModel):
     """Configuration for interacting with the Kalshi API."""
 
@@ -103,6 +151,8 @@ class Config(BaseModel):
     """Top-level application configuration."""
 
     kalshi: KalshiConfig = Field(..., description="Kalshi configuration")
+    portfolio_manager: PortfolioManagerConfig = Field(..., description="Portfolio manager sizing and guardrails")
+
 
 def load_config() -> Config:
     """Load application configuration from environment variables.
@@ -132,4 +182,10 @@ def load_config() -> Config:
         max_delay=_get_env_number("KALSHI_MAX_DELAY", 30.0, float),
         orderbook_depth=_get_env_number("KALSHI_ORDERBOOK_DEPTH", 10, int),
     )
-    return Config(kalshi=kalshi)
+    portfolio_manager = PortfolioManagerConfig(
+        kelly_fraction=_get_env_number("PM_KELLY_FRACTION", 0.25, float),
+        min_edge_threshold=_get_env_number("PM_MIN_EDGE_THRESHOLD", 0.05, float),
+        max_position_fraction=_get_env_number("PM_MAX_POSITION_FRACTION", 0.05, float),
+        bankroll=_get_required_env_float("PM_BANKROLL"),
+    )
+    return Config(kalshi=kalshi, portfolio_manager=portfolio_manager)

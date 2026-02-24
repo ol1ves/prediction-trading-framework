@@ -1,6 +1,6 @@
 import pytest
 
-from config import KalshiConfig, load_config
+from config import KalshiConfig, PortfolioManagerConfig, load_config
 
 
 def test_kalshi_config_base_url_demo_and_prod():
@@ -22,6 +22,7 @@ def test_load_config_reads_required_and_defaults(monkeypatch: pytest.MonkeyPatch
     pem = "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----"
     monkeypatch.setenv("KALSHI_API_KEY", "test_key")
     monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem)
+    monkeypatch.setenv("PM_BANKROLL", "10000.0")
     monkeypatch.delenv("KALSHI_RATE_LIMIT", raising=False)
     monkeypatch.delenv("KALSHI_MAX_ATTEMPT", raising=False)
     monkeypatch.delenv("KALSHI_BASE_DELAY", raising=False)
@@ -40,10 +41,38 @@ def test_load_config_reads_required_and_defaults(monkeypatch: pytest.MonkeyPatch
     assert cfg.orderbook_depth == 10
 
 
+def test_portfolio_manager_config_validates_ranges():
+    """PortfolioManagerConfig accepts valid values and rejects out-of-range ones."""
+    cfg = PortfolioManagerConfig(
+        kelly_fraction=0.25,
+        min_edge_threshold=0.05,
+        max_position_fraction=0.05,
+        bankroll=10_000.0,
+    )
+    assert cfg.kelly_fraction == 0.25
+    assert cfg.bankroll == 10_000.0
+
+    with pytest.raises(ValueError, match="kelly_fraction"):
+        PortfolioManagerConfig(
+            kelly_fraction=1.5,
+            min_edge_threshold=0.05,
+            max_position_fraction=0.05,
+            bankroll=10_000.0,
+        )
+    with pytest.raises(ValueError, match="bankroll"):
+        PortfolioManagerConfig(
+            kelly_fraction=0.25,
+            min_edge_threshold=0.05,
+            max_position_fraction=0.05,
+            bankroll=0.0,
+        )
+
+
 def test_load_config_parses_optional_fields(monkeypatch: pytest.MonkeyPatch):
     pem = "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----"
     monkeypatch.setenv("KALSHI_API_KEY", "test_key")
     monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem)
+    monkeypatch.setenv("PM_BANKROLL", "10000.0")
     monkeypatch.setenv("KALSHI_USE_DEMO", "false")
     monkeypatch.setenv("KALSHI_RATE_LIMIT", "7")
     monkeypatch.setenv("KALSHI_MAX_ATTEMPT", "9")

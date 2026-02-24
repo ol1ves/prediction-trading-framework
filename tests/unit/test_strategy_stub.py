@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from types import SimpleNamespace
 
 import pytest
 
 from trading.bus import ExecutionCommandBus, ExecutionEventBus, TradeIntentBus
-from trading.models import SubmitOrder
+from trading.models import MarketSnapshot, SubmitOrder, TradeIntent
 from trading.portfolio.manager import PortfolioManager
 from trading.strategy import MarketResolver, StrategyOrchestrator, StubStrategy
-from trading.models import TradeIntent
 
 
 def _is_uuid(s: str) -> bool:
@@ -83,19 +83,48 @@ async def test_market_resolver_default_map_has_stub_subject() -> None:
     assert identity.ticker == "ABC"
 
 
+class _FakeMarketStateService:
+    """Returns a fixed snapshot for any subject (for PM intent pipeline tests)."""
+
+    def __init__(self, snapshot: MarketSnapshot) -> None:
+        self._snapshot = snapshot
+
+    async def get_latest(self, subject: str) -> MarketSnapshot | None:
+        return self._snapshot
+
+
 @pytest.mark.asyncio
 async def test_pm_handle_intent_submits_order_via_resolver() -> None:
-    """PM receives one TradeIntent, resolves subject, puts one SubmitOrder on command bus."""
+    """PM receives one TradeIntent, resolves subject, gets snapshot, sizes via Kelly, puts SubmitOrder."""
     execution_command_bus = ExecutionCommandBus()
     execution_event_bus = ExecutionEventBus()
     intent_bus = TradeIntentBus()
     resolver = MarketResolver(subject_to_ticker={"SUB_A": "TICKER_X"})
+    # Snapshot: implied 0.40 so edge = 0.60 - 0.40 = 0.20 >= 0.05; ask 0.55 for sizing.
+    snapshot = MarketSnapshot(
+        subject="SUB_A",
+        implied_probability=0.40,
+        bid=0.38,
+        ask=0.55,
+        spread=0.02,
+        liquidity="medium",
+        time_to_resolution_minutes=60,
+    )
+    market_state_service = _FakeMarketStateService(snapshot)
+    pm_config = SimpleNamespace(
+        kelly_fraction=0.25,
+        min_edge_threshold=0.05,
+        max_position_fraction=0.05,
+        bankroll=10_000.0,
+    )
 
     pm = PortfolioManager(
         execution_command_bus=execution_command_bus,
         execution_event_bus=execution_event_bus,
+        config=pm_config,
         trade_intent_bus=intent_bus,
         market_resolver=resolver,
+        market_state_service=market_state_service,
     )
 
     intent = TradeIntent(
@@ -103,7 +132,7 @@ async def test_pm_handle_intent_submits_order_via_resolver() -> None:
         strategy_id="test_strategy",
         subject="SUB_A",
         side="YES",
-        probability=0.50,
+        probability=0.60,
         confidence=0.8,
         rationale="test",
     )
@@ -116,4 +145,7 @@ async def test_pm_handle_intent_submits_order_via_resolver() -> None:
     assert cmd.request.ticker == "TICKER_X"
     assert cmd.request.side == "yes"
     assert cmd.request.action == "buy"
-    assert cmd.request.limit_price_dollars == 0.50
+    # Limit price is snapshot ask for YES.
+    assert cmd.request.limit_price_dollars == 0.55
+    # Kelly: f_full = (0.6-0.4)/(1-0.4) = 1/3, f_frac = 0.25/3, dollar = 10000/12 ~ 833, contracts = 833/0.55 = 1514.
+    assert cmd.request.count >= 1
