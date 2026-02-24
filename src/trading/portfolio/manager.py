@@ -5,6 +5,7 @@ It only:
 - sends submit/cancel commands to the execution engine
 - consumes execution events and maintains a minimal in-memory view of state
 - when TradeIntentBus and MarketResolver are provided, consumes intents and submits orders
+- when MarketStateService is provided, uses latest market snapshot for position sizing
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
 from ..bus import ExecutionCommandBus, ExecutionEventBus, TradeIntentBus
 from ..models import (
@@ -28,6 +30,9 @@ from ..models import (
 )
 from ..models import TradeIntent
 from ..strategy.resolver import MarketResolver
+
+if TYPE_CHECKING:
+    from ..market_state import MarketStateService
 
 logger = logging.getLogger(__name__)
 
@@ -47,16 +52,19 @@ class PortfolioManager:
         execution_event_bus: ExecutionEventBus,
         trade_intent_bus: TradeIntentBus | None = None,
         market_resolver: MarketResolver | None = None,
+        market_state_service: MarketStateService | None = None,
     ) -> None:
         """Create a portfolio manager attached to the given buses.
 
         If trade_intent_bus and market_resolver are both provided, the manager
         will consume intents via run_intent_consumer() and submit orders.
+        If market_state_service is provided, get_latest() is used for position sizing.
         """
         self._commands = execution_command_bus
         self._events = execution_event_bus
         self._intent_bus = trade_intent_bus
         self._resolver = market_resolver
+        self._market_state_service = market_state_service
 
         self._event_subscription = self._events.subscribe()
         self._intent_subscription = trade_intent_bus.subscribe() if trade_intent_bus else None
@@ -101,6 +109,16 @@ class PortfolioManager:
         if identity is None:
             logger.warning("No market identity for subject %r; skipping intent %s", intent.subject, intent.trade_id)
             return
+        count = 1
+        if self._market_state_service is not None:
+            snapshot = await self._market_state_service.get_latest(intent.subject)
+            if snapshot is not None:
+                if snapshot.liquidity == "high":
+                    count = 3
+                elif snapshot.liquidity == "medium":
+                    count = 2
+                else:
+                    count = 1
         side = "yes" if intent.side == "YES" else "no"
         request = OrderRequest(
             trade_id=intent.trade_id,
@@ -108,7 +126,7 @@ class PortfolioManager:
             ticker=identity.ticker,
             side=side,
             action="buy",
-            count=1,
+            count=count,
             order_type="limit",
             limit_price_dollars=intent.probability,
             client_order_id=intent.trade_id,

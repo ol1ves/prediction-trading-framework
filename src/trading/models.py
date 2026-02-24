@@ -47,15 +47,32 @@ class Signal(_Model):
     timestamp: datetime = Field(default_factory=utc_now)
 
 
-class MarketSnapshot(_Model):
-    """Market belief for a subject (e.g. implied probability from orderbook).
+LiquidityLevel = Literal["low", "medium", "high"]
 
-    Not produced in this iteration; type exists for protocol compatibility.
-    Will be supplied by a different module later.
-    """
+
+class TickerMarketSnapshot(_Model):
+    """Venue/ticker-scoped market snapshot (no subject). Returned by execution adapters."""
+
+    ticker: str
+    implied_probability: float
+    bid: float
+    ask: float
+    spread: float
+    liquidity: LiquidityLevel
+    time_to_resolution_minutes: int
+    timestamp: datetime = Field(default_factory=utc_now)
+
+
+class MarketSnapshot(_Model):
+    """Market belief for a subject (e.g. implied probability from orderbook)."""
 
     subject: str
     implied_probability: float
+    bid: float
+    ask: float
+    spread: float
+    liquidity: LiquidityLevel
+    time_to_resolution_minutes: int
     timestamp: datetime = Field(default_factory=utc_now)
 
 

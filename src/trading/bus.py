@@ -10,9 +10,11 @@ can coexist without confusion. Current buses:
 - TradeIntentBus: fan-out pub/sub for trade intents; StrategyOrchestrator -> subscribers
   (e.g. PortfolioManager).
 
+- MarketSnapshotBus: fan-out pub/sub for market snapshots; MarketStateService -> subscribers
+  (e.g. StrategyOrchestrator).
+
 Planned buses (same naming pattern):
 - SignalBus: signals published to subscribers that emit trade intents.
-- MarketSnapshotBus: market snapshots published to subscribers.
 """
 
 from __future__ import annotations
@@ -20,9 +22,8 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Iterable
 
-from .models import ExecutionCommand, ExecutionEvent
+from .models import ExecutionCommand, ExecutionEvent, MarketSnapshot, TradeIntent
 from observability.recorder import ObservabilityRecorder
-from .models import TradeIntent
 
 
 class ExecutionCommandBus:
@@ -115,3 +116,32 @@ class TradeIntentBus:
             await self._recorder.record_message(intent, kind="event", stage=stage)
         for queue in list(self._subscribers):
             await queue.put(intent)
+
+
+class MarketSnapshotBus:
+    """Fan-out bus for market snapshots (MarketStateService -> subscribers, e.g. StrategyOrchestrator).
+
+    Carries MarketSnapshot so strategies receive normalized market belief updates by subject.
+    """
+
+    def __init__(self, *, recorder: ObservabilityRecorder | None = None) -> None:
+        """Create a snapshot fan-out bus with optional observability recording."""
+        self._subscribers: set[asyncio.Queue[MarketSnapshot]] = set()
+        self._recorder = recorder
+
+    def subscribe(self) -> asyncio.Queue[MarketSnapshot]:
+        """Create a new subscriber queue that will receive published snapshots."""
+        q: asyncio.Queue[MarketSnapshot] = asyncio.Queue()
+        self._subscribers.add(q)
+        return q
+
+    def unsubscribe(self, q: asyncio.Queue[MarketSnapshot]) -> None:
+        """Remove a subscriber queue (no further snapshots will be delivered)."""
+        self._subscribers.discard(q)
+
+    async def publish(self, snapshot: MarketSnapshot, *, stage: str = "market_snapshot_bus") -> None:
+        """Publish a snapshot to all current subscribers (best-effort fan-out)."""
+        if self._recorder is not None:
+            await self._recorder.record_message(snapshot, kind="event", stage=stage)
+        for queue in list(self._subscribers):
+            await queue.put(snapshot)

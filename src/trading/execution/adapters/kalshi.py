@@ -2,7 +2,17 @@
 
 from __future__ import annotations
 
-from ...models import OrderRequest, Position, PositionSnapshot, Venue, VenueOrderId
+from datetime import datetime, timezone
+
+from ...models import (
+    OrderRequest,
+    Position,
+    PositionSnapshot,
+    TickerMarketSnapshot,
+    Venue,
+    VenueOrderId,
+)
+from ...models import utc_now
 from .base import ExecutionAdapter
 
 from kalshi.client import KalshiClient
@@ -66,4 +76,53 @@ class KalshiExecutionAdapter(ExecutionAdapter):
             for p in positions
         ]
         return PositionSnapshot(venue=self.venue, positions=normalized)
+
+    async def get_market_snapshot(self, ticker: str, *, orderbook_depth: int = 10) -> TickerMarketSnapshot:
+        """Fetch market + orderbook and return a normalized ticker-scoped snapshot."""
+        market = await self._client.get_market(ticker)
+        orderbook = await self._client.get_market_orderbook(ticker, depth=orderbook_depth)
+        now = datetime.now(tz=timezone.utc)
+        close = market.close_time
+        if close.tzinfo is None:
+            close = close.replace(tzinfo=timezone.utc)
+        delta = close - now
+        time_to_resolution_minutes = max(0, int(delta.total_seconds() / 60))
+        bid = float(market.yes_bid_dollars or 0.0)
+        ask = float(market.yes_ask_dollars or 0.0)
+        if bid <= 0 and ask <= 0 and orderbook.yes_dollars and orderbook.no_dollars:
+            yes_best = orderbook.yes_dollars[0] if orderbook.yes_dollars else None
+            no_best = orderbook.no_dollars[0] if orderbook.no_dollars else None
+            if yes_best is not None:
+                ask = yes_best.dollars
+            if no_best is not None:
+                bid = 1.0 - no_best.dollars if no_best.dollars <= 1.0 else 0.0
+            if bid <= 0 and yes_best is not None:
+                bid = yes_best.dollars
+        if ask <= 0:
+            ask = bid
+        if bid <= 0:
+            bid = ask
+        spread = round(ask - bid, 4)
+        implied_probability = round((bid + ask) / 2.0, 4) if (bid + ask) > 0 else 0.0
+        total_size = 0
+        for level in orderbook.yes_dollars[:5]:
+            total_size += level.count
+        for level in orderbook.no_dollars[:5]:
+            total_size += level.count
+        if total_size < 50:
+            liquidity: str = "low"
+        elif total_size < 200:
+            liquidity = "medium"
+        else:
+            liquidity = "high"
+        return TickerMarketSnapshot(
+            ticker=ticker,
+            implied_probability=implied_probability,
+            bid=bid,
+            ask=ask,
+            spread=spread,
+            liquidity=liquidity,
+            time_to_resolution_minutes=time_to_resolution_minutes,
+            timestamp=utc_now(),
+        )
 

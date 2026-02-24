@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from ...models import OrderRequest, PositionSnapshot, VenueOrderId
+from ...models import OrderRequest, PositionSnapshot, TickerMarketSnapshot, VenueOrderId
 
 
 class ExecutionAdapter(Protocol):
@@ -23,4 +23,7 @@ class ExecutionAdapter(Protocol):
 
     async def get_positions_snapshot(self) -> PositionSnapshot:
         """Return a normalized position snapshot."""
+
+    async def get_market_snapshot(self, ticker: str) -> TickerMarketSnapshot:
+        """Return a ticker-scoped market snapshot (bid, ask, implied prob, liquidity, etc.)."""
 
