@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 from ..bus import MarketSnapshotBus
@@ -54,6 +55,39 @@ class MarketStateService:
             logger.warning("Adapter get_market_snapshot failed for ticker %s: %s", identity.ticker, e)
             return None
         return self._to_market_snapshot(subject, raw)
+
+    async def get_latest_by_ticker(self, ticker: str) -> TickerMarketSnapshot | None:
+        """Fetch ticker-scoped snapshot from adapter. No subject resolution."""
+        try:
+            return await self._adapter.get_market_snapshot(ticker)
+        except Exception as e:
+            logger.warning("Adapter get_market_snapshot failed for ticker %s: %s", ticker, e)
+            return None
+
+    async def get_latest_subject_snapshots(
+        self,
+        subjects: Iterable[str] | None = None,
+    ) -> dict[str, MarketSnapshot]:
+        """Return latest subject-scoped snapshots. If subjects is None, use tracked subjects."""
+        to_fetch = list(subjects if subjects is not None else self._tracked_subjects)
+        result: dict[str, MarketSnapshot] = {}
+        for subj in to_fetch:
+            snapshot = await self.get_latest(subj)
+            if snapshot is not None:
+                result[subj] = snapshot
+        return result
+
+    async def get_latest_ticker_snapshots(
+        self,
+        tickers: Iterable[str],
+    ) -> dict[str, TickerMarketSnapshot]:
+        """Return latest ticker-scoped snapshots for the given tickers."""
+        result: dict[str, TickerMarketSnapshot] = {}
+        for ticker in tickers:
+            snapshot = await self.get_latest_by_ticker(ticker)
+            if snapshot is not None:
+                result[ticker] = snapshot
+        return result
 
     async def run_poller(self, interval_s: float) -> None:
         """Run forever: for each tracked subject, fetch snapshot and publish to the bus."""
