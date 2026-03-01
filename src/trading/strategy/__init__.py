@@ -2,9 +2,9 @@
 
 from ..bus import TradeIntentBus
 from ..models import Signal, TradeIntent
+from ..resolvers import MarketIdentity, MarketResolver
 from .orchestrator import StrategyOrchestrator
 from .protocol import Strategy
-from .resolver import MarketIdentity, MarketResolver
 from .stub import StubStrategy
 
 __all__ = [

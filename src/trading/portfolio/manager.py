@@ -34,7 +34,7 @@ from ..models import (
     VenueOrderId,
 )
 from ..models import TradeIntent
-from ..strategy.resolver import MarketResolver
+from ..resolvers import MarketResolver
 
 if TYPE_CHECKING:
     from ..market_state import MarketStateService
@@ -258,14 +258,16 @@ class PortfolioManager:
         )
 
         # Step 1 — Resolve market
-        identity = self._resolver.resolve(intent.subject, intent.timestamp)
+        identity = await self._resolver.resolve(intent.subject, for_date=intent.for_date)
         if identity is None:
             record.rejection_reason = "no_market_identity"
             await self._log_decision(record)
             return
 
-        # Step 2 — Fetch snapshot
-        snapshot: MarketSnapshot | None = await self._market_state_service.get_latest(intent.subject)
+        # Step 2 — Fetch snapshot (same date as identity so we get the same ticker)
+        snapshot: MarketSnapshot | None = await self._market_state_service.get_latest(
+            intent.subject, for_date=intent.for_date
+        )
         if snapshot is None:
             record.rejection_reason = "snapshot_unavailable"
             await self._log_decision(record)

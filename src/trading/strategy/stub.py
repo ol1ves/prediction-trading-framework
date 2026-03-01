@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from ..models import MarketSnapshot, Signal, TradeIntent
 
@@ -21,6 +21,7 @@ class StubStrategy:
         probability: float = 0.75,
         confidence: float = 0.9,
         rationale: str = "stub hardcoded intent",
+        date_offset_days: int = 0,
     ) -> None:
         self.subjects = {subject}
         self._subject = subject
@@ -28,6 +29,7 @@ class StubStrategy:
         self._probability = probability
         self._confidence = confidence
         self._rationale = rationale
+        self._date_offset_days = date_offset_days
 
     async def evaluate(
         self,
@@ -36,11 +38,15 @@ class StubStrategy:
     ) -> list[TradeIntent]:
         """Ignore inputs; return a single hardcoded TradeIntent with a new trade_id."""
         trade_id = str(uuid.uuid4())
+        # Use local date so offset=0 = today, offset=1 = tomorrow (UTC would make offset=1 two days ahead in US evening).
+        base = date.today()
+        for_date = base + timedelta(days=self._date_offset_days)
         return [
             TradeIntent(
                 trade_id=trade_id,
                 strategy_id=self.strategy_id,
                 subject=self._subject,
+                for_date=for_date,
                 side=self._side,
                 probability=self._probability,
                 confidence=self._confidence,

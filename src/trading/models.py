@@ -10,7 +10,7 @@ They are venue-agnostic and are expected to evolve as the system grows.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, Literal, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -82,6 +82,7 @@ class TradeIntent(_Model):
     trade_id: str
     strategy_id: str
     subject: str
+    for_date: date
     side: TradeIntentSide
     probability: float
     confidence: float

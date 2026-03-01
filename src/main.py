@@ -27,7 +27,8 @@ from trading.execution.engine import ExecutionEngine
 from trading.market_state import MarketStateService
 from trading.models import OrderRequest
 from trading.portfolio.manager import PortfolioManager
-from trading.strategy import MarketResolver, StrategyOrchestrator, StubStrategy
+from trading.resolvers import MarketResolver, WeatherResolver
+from trading.strategy import StrategyOrchestrator, StubStrategy
 
 
 async def _log_events(
@@ -98,11 +99,20 @@ async def run_demo() -> None:
     ticker = os.getenv("DEMO_TICKER", "ABC")
     stub_subject = os.getenv("STUB_STRATEGY_SUBJECT", "STUB_SUBJECT")
     stub_interval_s = float(os.getenv("STUB_STRATEGY_INTERVAL_S", 60.0))
+    try:
+        stub_date_offset_days = int(os.getenv("STUB_STRATEGY_DATE_OFFSET_DAYS", "0"))
+    except ValueError:
+        stub_date_offset_days = 0
     market_state_poller_interval_s = float(os.getenv("MARKET_STATE_POLLER_INTERVAL_S", 30.0))
 
     trade_intent_bus = TradeIntentBus(recorder=recorder)
     market_snapshot_bus = MarketSnapshotBus(recorder=recorder)
-    resolver = MarketResolver(subject_to_ticker={stub_subject: ticker})
+
+    weather_resolver = WeatherResolver(client)
+    resolver = MarketResolver(
+        subject_to_ticker={stub_subject: ticker},
+        resolvers=[weather_resolver],
+    )
     market_state_service = MarketStateService(
         market_resolver=resolver,
         adapter=adapter,
@@ -134,7 +144,7 @@ async def run_demo() -> None:
     snapshot_consumer_task: asyncio.Task | None = None
 
     if os.getenv("RUN_STUB_STRATEGY", "true") == "true":
-        stub = StubStrategy(subject=stub_subject)
+        stub = StubStrategy(subject=stub_subject, date_offset_days=stub_date_offset_days)
         orchestrator.register(stub)
         all_subjects: set[str] = set()
         for s in orchestrator._strategies:

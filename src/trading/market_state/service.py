@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Iterable
+from datetime import date
 from typing import TYPE_CHECKING
 
 from ..bus import MarketSnapshotBus
@@ -12,7 +13,7 @@ from ..models import MarketSnapshot, TickerMarketSnapshot
 
 if TYPE_CHECKING:
     from ..execution.adapters.base import ExecutionAdapter
-    from ..strategy.resolver import MarketResolver
+    from ..resolvers import MarketResolver
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +45,9 @@ class MarketStateService:
         if subject:
             self._tracked_subjects |= set(subject)
 
-    async def get_latest(self, subject: str) -> MarketSnapshot | None:
+    async def get_latest(self, subject: str, for_date: date | None = None) -> MarketSnapshot | None:
         """Resolve subject to ticker, fetch snapshot from adapter, normalize to subject and return."""
-        identity = self._resolver.resolve(subject)
+        identity = await self._resolver.resolve(subject, for_date=for_date)
         if identity is None:
             return None
         try:
