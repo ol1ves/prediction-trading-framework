@@ -17,10 +17,10 @@ def _utc_now() -> datetime:
 # Kalshi uses KX-prefixed series for weather (e.g. KXHIGHNY-26FEB28-B54.5).
 SERIES_MAP: Final[dict[tuple[str, str], str]] = {
     ("HIGH_TEMP", "NYC"): "KXHIGHNY",
-    ("HIGH_TEMP", "CHI"): "HIGHCHI",
-    ("HIGH_TEMP", "MIA"): "HIGHMIA",
-    ("HIGH_TEMP", "DC"): "HIGHDC",
-    ("HIGH_TEMP", "AUS"): "HIGHAUS",
+    ("HIGH_TEMP", "CHI"): "KXHIGHCHI",
+    ("HIGH_TEMP", "MIA"): "KXHIGHMIA",
+    ("HIGH_TEMP", "DC"): "KXHIGHDC",
+    ("HIGH_TEMP", "AUS"): "KXHIGHAUS",
 }
 
 
